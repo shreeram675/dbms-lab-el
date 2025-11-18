@@ -60,4 +60,36 @@ If the document is changed even by 1 character/pixel, the system instantly detec
 ## 🧠 How the System Works (Workflow)
 
 ### **1. User Uploads Document**
-The user u
+The user uploads a file through the frontend interface.
+
+### **2. System Generates SHA-256 Hash**
+Backend reads the file → extracts bytes → generates cryptographic hash.
+
+### **3. Blockchain Storage**
+The hash is sent to the blockchain smart contract and stored permanently.
+
+### **4. Metadata Storage**
+Document metadata such as:
+- File Name  
+- Document ID  
+- User ID  
+- Timestamp  
+- File Path  
+is stored in SQL/NoSQL databases.
+
+### **5. Verification Process**
+A verifier uploads the document for checking.
+
+### **6. Hash Comparison**
+- System generates hash of verifier’s document  
+- Fetches the original hash from blockchain  
+- Compares both  
+
+### **7. Result**
+- If hashes match → **Document Authentic**  
+- If mismatched → **Document Tampered**
+
+---
+
+## 📐 System Architecture
+
