@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Doc System</title>
+    <style>
+        body { font-family: sans-serif; padding: 2rem; }
+        .status { padding: 1rem; background: #e0f7fa; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Blockchain Document Verification</h1>
+    <div class="status">
+        <p>Frontend is running!</p>
+        <p>Backend Status: <span id="backend-status">Checking...</span></p>
+    </div>
+
+    <script>
+        fetch('/api/health')
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('backend-status').innerText = data.status === 'ok' ? 'Connected ✅' : 'Error ❌';
+            })
+            .catch(err => {
+                document.getElementById('backend-status').innerText = 'Unreachable ❌';
+            });
+    </script>
+</body>
+</html>

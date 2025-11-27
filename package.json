@@ -1,0 +1,17 @@
+{
+    "name": "blockchain-doc-system",
+    "version": "1.0.0",
+    "scripts": {
+        "start": "node src/index.js",
+        "build": "mkdir -p build && cp public/index.html build/index.html",
+        "test": "echo \"Error: no test specified\" && exit 0"
+    },
+    "dependencies": {
+        "express": "^4.18.2",
+        "pg": "^8.11.0",
+        "redis": "^4.6.7",
+        "mongoose": "^7.3.1",
+        "ethers": "^6.6.2",
+        "dotenv": "^16.3.1"
+    }
+}
