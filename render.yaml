@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: backend
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: node src/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        fromDatabase:
+          name: db_proj
+          property: host
+
+  - type: web
+    name: frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./build
+
+databases:
+  - name: db_proj
+    plan: starter
+    databaseName: db_proj
+    user: postgres

@@ -1,0 +1,18 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migration
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+spec:
+  template:
+    spec:
+      containers:
+      - name: migration
+        image: myregistry/backend:latest
+        command: ["npm", "run", "migrate"]
+        env:
+        - name: DB_HOST
+          value: "postgres"
+      restartPolicy: Never
+  backoffLimit: 4

@@ -1,0 +1,19 @@
+{
+  "title": "Blockchain System Overview",
+  "panels": [
+    {
+      "title": "API Requests / sec",
+      "type": "graph",
+      "targets": [
+        { "expr": "rate(http_requests_total[1m])" }
+      ]
+    },
+    {
+      "title": "Pending Transactions",
+      "type": "gauge",
+      "targets": [
+        { "expr": "blockchain_pending_tx" }
+      ]
+    }
+  ]
+}

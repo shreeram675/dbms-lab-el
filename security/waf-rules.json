@@ -1,0 +1,28 @@
+[
+    {
+        "Action": {
+            "Block": {}
+        },
+        "Statement": {
+            "ByteMatchStatement": {
+                "SearchString": "SELECT",
+                "FieldToMatch": {
+                    "QueryString": {}
+                },
+                "TextTransformations": [
+                    {
+                        "Priority": 0,
+                        "Type": "LOWERCASE"
+                    }
+                ],
+                "PositionalConstraint": "CONTAINS"
+            }
+        },
+        "VisibilityConfig": {
+            "SampledRequestsEnabled": true,
+            "CloudWatchMetricsEnabled": true,
+            "MetricName": "BlockSQLi"
+        },
+        "Name": "BlockSQLInjection"
+    }
+]

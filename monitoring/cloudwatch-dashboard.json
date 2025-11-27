@@ -1,0 +1,18 @@
+{
+    "widgets": [
+        {
+            "type": "metric",
+            "properties": {
+                "metrics": [
+                    [
+                        "AWS/ECS",
+                        "CPUUtilization",
+                        "ClusterName",
+                        "blockchain-doc-cluster"
+                    ]
+                ],
+                "title": "ECS CPU"
+            }
+        }
+    ]
+}
