@@ -4,6 +4,7 @@
     "scripts": {
         "start": "node src/index.js",
         "build": "mkdir -p build && cp public/index.html build/index.html",
+        "migrate": "node scripts/db/migrate.js",
         "test": "echo \"Error: no test specified\" && exit 0"
     },
     "dependencies": {
