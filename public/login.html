@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - BlockVerify</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .login-box {
+            background: var(--surface);
+            padding: 3rem;
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            max-width: 450px;
+            width: 90%;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-logo {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-header h1 {
+            font-size: 1.75rem;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .login-header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <div class="login-logo">🔐</div>
+                <h1>BlockVerify</h1>
+                <p>Document Verification System</p>
+            </div>
+
+            <div class="alert-info">
+                <strong>Test Accounts:</strong><br>
+                • admin@blockverify.com / admin123<br>
+                • uploader@blockverify.com / upload123<br>
+                • verifier@blockverify.com / verify123
+            </div>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" placeholder="Enter your email" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                </div>
+
+                <div id="error-message" class="result-area error hidden"></div>
+
+                <button type="submit" class="btn-primary" id="btn-login">
+                    Login to Continue
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('error-message');
+            const btn = document.getElementById('btn-login');
+
+            btn.disabled = true;
+            btn.textContent = 'Logging in...';
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    // Redirect to main app
+                    window.location.href = '/app.html';
+                } else {
+                    errorDiv.textContent = data.error || 'Invalid credentials';
+                    errorDiv.classList.remove('hidden');
+                    btn.disabled = false;
+                    btn.textContent = 'Login to Continue';
+                }
+            } catch (err) {
+                errorDiv.textContent = 'Network error. Please try again.';
+                errorDiv.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Login to Continue';
+            }
+        });
+
+        // Check if already logged in
+        fetch('/api/me')
+            .then(res => {
+                if (res.ok) {
+                    // Already logged in, redirect
+                    window.location.href = '/app.html';
+                }
+            })
+            .catch(() => { });
+    </script>
+</body>
+
+</html>

@@ -15,14 +15,11 @@
                 <span>🔐</span> BlockVerify
             </div>
             <div class="user-section">
-                <div id="user-info" class="hidden">
-                    <div class="user-badge">
-                        <span class="user-name" id="user-name"></span>
-                        <span class="user-role" id="user-role"></span>
-                    </div>
-                    <button class="btn-logout" id="btn-logout">Logout</button>
+                <div class="user-badge">
+                    <span class="user-name" id="user-name">Loading...</span>
+                    <span class="user-role" id="user-role"></span>
                 </div>
-                <button class="btn-login" id="btn-login">Login</button>
+                <button class="btn-logout" id="btn-logout">Logout</button>
             </div>
         </div>
     </header>
@@ -42,8 +39,8 @@
                 <!-- Upload Tab -->
                 <div id="upload-form" class="tab-content">
                     <div class="form-group">
-                        <label for="institution-select">Institution (Optional)</label>
-                        <select id="institution-select">
+                        <label for="institution-select">Select Your Institution *</label>
+                        <select id="institution-select" required>
                             <option value="">-- Select Institution --</option>
                         </select>
                     </div>
@@ -67,7 +64,7 @@
                         <p id="verify-file-label">Or click to upload document for verification</p>
                         <input type="file" id="verify-file-input" hidden>
                     </div>
-                    <button class="btn-primary" id="btn-verify" disabled>Verify Document</button>
+                    <button class="btn-primary" id="btn-verify">Verify Document</button>
                     <div id="verify-result" class="result-area hidden"></div>
                 </div>
 
@@ -116,29 +113,6 @@
             </div>
         </div>
     </main>
-
-    <!-- Login Modal -->
-    <div id="login-modal" class="modal hidden">
-        <div class="modal-content">
-            <h2>Login to Continue</h2>
-            <div class="alert-info">
-                <strong>Test Accounts:</strong><br>
-                • admin@blockverify.com / admin123<br>
-                • uploader@blockverify.com / upload123<br>
-                • verifier@blockverify.com / verify123
-            </div>
-            <div class="form-group">
-                <label for="login-email">Email</label>
-                <input type="email" id="login-email" placeholder="Enter your email">
-            </div>
-            <div class="form-group">
-                <label for="login-password">Password</label>
-                <input type="password" id="login-password" placeholder="Enter your password">
-            </div>
-            <div id="login-error" class="result-area error hidden"></div>
-            <button class="btn-primary" id="btn-submit-login">Login</button>
-        </div>
-    </div>
 
     <script src="js/app.js"></script>
 </body>

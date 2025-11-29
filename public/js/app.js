@@ -1,4 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Check authentication immediately
+    checkAuthAndRedirect();
+
     // Elements
     const uploadTab = document.getElementById('tab-upload');
     const verifyTab = document.getElementById('tab-verify');
@@ -8,9 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const verifyForm = document.getElementById('verify-form');
     const dashboardView = document.getElementById('dashboard-view');
 
+    const logoutBtn = document.getElementById('btn-logout');
+    const userName = document.getElementById('user-name');
+    const userRole = document.getElementById('user-role');
+
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
     const fileLabel = document.getElementById('file-label');
+    const institutionSelect = document.getElementById('institution-select');
 
     const verifyDropZone = document.getElementById('verify-drop-zone');
     const verifyFileInput = document.getElementById('verify-file-input');
@@ -18,6 +26,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let selectedFile = null;
     let selectedVerifyFile = null;
+    let currentUser = null;
+
+    // Check authentication
+    async function checkAuthAndRedirect() {
+        try {
+            const res = await fetch('/api/me');
+            if (res.ok) {
+                const data = await res.json();
+                currentUser = data.user;
+                updateUI();
+                loadInstitutions();
+            } else {
+                // Not logged in, redirect to login page
+                window.location.href = '/login.html';
+            }
+        } catch (err) {
+            console.error('Auth check failed:', err);
+            window.location.href = '/login.html';
+        }
+    }
+
+    function updateUI() {
+        if (currentUser) {
+            userName.textContent = currentUser.name;
+            userRole.textContent = currentUser.role;
+
+            // Enable buttons based on role
+            const uploadBtn = document.getElementById('btn-upload');
+
+            if (currentUser.role === 'admin' || currentUser.role === 'uploader') {
+                uploadBtn.disabled = false;
+            } else {
+                uploadBtn.disabled = true;
+                uploadTab.style.opacity = '0.5';
+                uploadTab.style.cursor = 'not-allowed';
+            }
+        }
+    }
+
+    logoutBtn.addEventListener('click', async () => {
+        try {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login.html';
+        } catch (err) {
+            console.error('Logout failed:', err);
+        }
+    });
 
     // Tab Switching
     function switchTab(mode) {
@@ -25,6 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
         [uploadForm, verifyForm, dashboardView].forEach(v => v.classList.add('hidden'));
 
         if (mode === 'upload') {
+            if (currentUser.role === 'verifier') {
+                alert('You do not have permission to upload documents.');
+                return;
+            }
             uploadTab.classList.add('active');
             uploadForm.classList.remove('hidden');
         } else if (mode === 'verify') {
@@ -41,30 +100,49 @@ document.addEventListener('DOMContentLoaded', () => {
     verifyTab.addEventListener('click', () => switchTab('verify'));
     dashboardTab.addEventListener('click', () => switchTab('dashboard'));
 
-    // Upload Drop Zone
+    // Load Institutions
+    async function loadInstitutions() {
+        try {
+            const res = await fetch('/api/institutions');
+            const data = await res.json();
+
+            data.institutions.forEach(inst => {
+                const option = document.createElement('option');
+                option.value = inst.institution_id;
+                option.textContent = inst.name;
+                institutionSelect.appendChild(option);
+            });
+        } catch (err) {
+            console.error('Failed to load institutions:', err);
+        }
+    }
+
+    // Upload handlers
     dropZone.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (e) => {
-        const files = e.target.files;
-        if (files.length > 0) {
-            selectedFile = files[0];
-            fileLabel.innerText = `Selected: ${selectedFile.name}`;
+        if (e.target.files.length > 0) {
+            selectedFile = e.target.files[0];
+            fileLabel.textContent = `Selected: ${selectedFile.name}`;
         }
     });
 
-    // Verify Drop Zone
     verifyDropZone.addEventListener('click', () => verifyFileInput.click());
     verifyFileInput.addEventListener('change', (e) => {
-        const files = e.target.files;
-        if (files.length > 0) {
-            selectedVerifyFile = files[0];
-            verifyFileLabel.innerText = `Selected: ${selectedVerifyFile.name}`;
+        if (e.target.files.length > 0) {
+            selectedVerifyFile = e.target.files[0];
+            verifyFileLabel.textContent = `Selected: ${selectedVerifyFile.name}`;
         }
     });
 
-    // Upload Button
+    // Upload Document
     document.getElementById('btn-upload').addEventListener('click', async () => {
+        if (!institutionSelect.value) {
+            alert('Please select your institution first!');
+            return;
+        }
+
         if (!selectedFile) {
-            alert("Please select a file first!");
+            alert('Please select a file!');
             return;
         }
 
@@ -72,41 +150,54 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = document.getElementById('upload-result');
 
         btn.disabled = true;
-        btn.innerText = 'Hashing & Uploading...';
+        btn.textContent = 'Uploading & Hashing...';
 
         const formData = new FormData();
         formData.append('file', selectedFile);
+        formData.append('institutionId', institutionSelect.value);
 
         try {
             const res = await fetch('/api/upload', {
                 method: 'POST',
                 body: formData
             });
+
             const data = await res.json();
 
-            if (data.success) {
+            if (res.ok) {
                 result.innerHTML = `
-                    <h3>Success! Document Secured.</h3>
-                    <p>Transaction Hash:</p>
-                    <div class="hash-display">${data.hash}</div>
-                    <p>Block Index: ${data.blockIndex}</p>
+                    <h3>✅ Document Secured Successfully</h3>
+                    <p><strong>Document ID:</strong> ${data.document.docId}</p>
+                    <p><strong>SHA-256 Hash:</strong></p>
+                    <div class="hash-display">${data.document.hash}</div>
+                    <p><strong>Blockchain TX:</strong></p>
+                    <div class="hash-display">${data.document.tx}</div>
+                    <p><strong>Block Number:</strong> ${data.document.blockIndex}</p>
                 `;
                 result.classList.remove('hidden', 'error');
                 result.classList.add('success');
+
+                // Reset
+                selectedFile = null;
+                fileLabel.textContent = 'Click to select a document';
+                fileInput.value = '';
+                institutionSelect.value = '';
             } else {
-                throw new Error(data.error || 'Upload failed');
+                result.innerHTML = `<h3>❌ Upload Failed</h3><p>${data.error}</p>`;
+                result.classList.remove('hidden', 'success');
+                result.classList.add('error');
             }
         } catch (err) {
             result.innerHTML = `<h3>Error</h3><p>${err.message}</p>`;
             result.classList.remove('hidden', 'success');
             result.classList.add('error');
         } finally {
-            btn.disabled = false;
-            btn.innerText = 'Secure Document';
+            btn.disabled = currentUser && (currentUser.role === 'admin' || currentUser.role === 'uploader') ? false : true;
+            btn.textContent = 'Secure Document';
         }
     });
 
-    // Verify Button
+    // Verify Document
     document.getElementById('btn-verify').addEventListener('click', async () => {
         const btn = document.getElementById('btn-verify');
         const result = document.getElementById('verify-result');
@@ -128,77 +219,100 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ hash: hashInput })
             };
         } else {
-            alert("Please enter a hash or upload a file.");
+            alert('Please enter a hash or upload a file');
             return;
         }
 
         btn.disabled = true;
-        btn.innerText = 'Verifying on Blockchain...';
+        btn.textContent = 'Verifying...';
 
         try {
             const res = await fetch('/api/verify', options);
             const data = await res.json();
 
-            if (data.authentic) {
+            if (data.revoked) {
+                result.innerHTML = `
+                    <h3>🚫 Document Revoked</h3>
+                    <p>This document has been revoked and is no longer valid.</p>
+                    <p><strong>Reason:</strong> ${data.reason || 'No reason provided'}</p>
+                `;
+                result.classList.remove('hidden', 'success');
+                result.classList.add('error');
+            } else if (data.authentic) {
                 result.innerHTML = `
                     <h3>✅ Document Authentic</h3>
-                    <p>Matches blockchain record.</p>
-                    <div class="hash-display">Block #${data.block.index} - ${data.block.timestamp}</div>
+                    <p>This document is valid and matches blockchain records.</p>
                 `;
                 result.classList.remove('hidden', 'error');
                 result.classList.add('success');
             } else {
-                result.innerHTML = `<h3>❌ Tamper Detected</h3><p>No matching record found on blockchain.</p>`;
+                result.innerHTML = `
+                    <h3>❌ Document Tampered or Not Found</h3>
+                    <p>This document does not match any blockchain records or has been modified.</p>
+                `;
                 result.classList.remove('hidden', 'success');
                 result.classList.add('error');
             }
+
+            // Reset
+            selectedVerifyFile = null;
+            verifyFileLabel.textContent = 'Or click to upload document for verification';
+            verifyFileInput.value = '';
+            document.getElementById('verify-hash').value = '';
+
         } catch (err) {
             result.innerHTML = `<h3>Error</h3><p>${err.message}</p>`;
             result.classList.remove('hidden', 'success');
             result.classList.add('error');
         } finally {
             btn.disabled = false;
-            btn.innerText = 'Verify Authenticity';
+            btn.textContent = 'Verify Document';
         }
     });
 
-    // Dashboard Loader
+    // Load Dashboard
     async function loadDashboard() {
-        const blockchainTable = document.querySelector('#blockchain-table tbody');
-        const dbTable = document.querySelector('#db-table tbody');
+        const documentsTable = document.getElementById('documents-table');
+        const blockchainTable = document.getElementById('blockchain-table');
 
+        documentsTable.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
         blockchainTable.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
-        dbTable.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
 
         try {
             const res = await fetch('/api/dashboard');
             const data = await res.json();
 
-            blockchainTable.innerHTML = data.blocks.map(b => `
-                <tr>
-                    <td>${b.index}</td>
-                    <td>${new Date(b.timestamp).toLocaleString()}</td>
-                    <td class="hash-cell" title="${b.hash}">${b.hash}</td>
-                    <td class="hash-cell">${JSON.stringify(b.data)}</td>
-                </tr>
-            `).join('');
-
+            // Documents
             if (data.documents && data.documents.length > 0) {
-                dbTable.innerHTML = data.documents.map(d => `
+                documentsTable.innerHTML = data.documents.map(d => `
                     <tr>
-                        <td>${d.document_id}</td>
+                        <td>${d.doc_id}</td>
                         <td>${d.title}</td>
-                        <td class="hash-cell" title="${d.blockchain_hash}">${d.blockchain_hash}</td>
-                        <td>${new Date(d.upload_date).toLocaleString()}</td>
+                        <td>${d.institution_name || 'N/A'}</td>
+                        <td class="hash-cell" title="${d.sha256_hash}">${d.sha256_hash || 'N/A'}</td>
+                        <td class="hash-cell" title="${d.blockchain_tx}">${d.blockchain_tx || 'N/A'}</td>
+                        <td>${new Date(d.created_at).toLocaleString()}</td>
                     </tr>
                 `).join('');
             } else {
-                dbTable.innerHTML = '<tr><td colspan="4">No records yet - upload a document to get started!</td></tr>';
+                documentsTable.innerHTML = '<tr><td colspan="6">No documents yet</td></tr>';
+            }
+
+            // Blockchain
+            if (data.blocks && data.blocks.length > 0) {
+                blockchainTable.innerHTML = data.blocks.map(b => `
+                    <tr>
+                        <td>${b.index}</td>
+                        <td>${new Date(b.timestamp).toLocaleString()}</td>
+                        <td class="hash-cell" title="${b.hash}">${b.hash}</td>
+                        <td class="hash-cell">${JSON.stringify(b.data)}</td>
+                    </tr>
+                `).join('');
             }
 
         } catch (err) {
             console.error(err);
-            blockchainTable.innerHTML = '<tr><td colspan="4">Error loading data</td></tr>';
+            documentsTable.innerHTML = '<tr><td colspan="6">Error loading data</td></tr>';
         }
     }
 });
