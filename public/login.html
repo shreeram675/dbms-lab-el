@@ -79,6 +79,11 @@
                 <button type="submit" class="btn-primary" id="btn-login">
                     Login to Continue
                 </button>
+
+                <p class="auth-link" style="text-align: center; margin-top: 1.5rem; color: var(--text-secondary);">
+                    Don't have an account? <a href="register.html"
+                        style="color: var(--primary-blue); text-decoration: none; font-weight: 600;">Sign up here</a>
+                </p>
             </form>
         </div>
     </div>
@@ -105,7 +110,6 @@
                 const data = await res.json();
 
                 if (res.ok) {
-                    // Redirect to main app
                     window.location.href = '/app.html';
                 } else {
                     errorDiv.textContent = data.error || 'Invalid credentials';
@@ -125,7 +129,6 @@
         fetch('/api/me')
             .then(res => {
                 if (res.ok) {
-                    // Already logged in, redirect
                     window.location.href = '/app.html';
                 }
             })

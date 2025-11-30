@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - BlockVerify</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="auth-container">
+            <div class="auth-box">
+                <h2>Create Account</h2>
+                <p class="subtitle">Join the secure document verification network</p>
+
+                <form id="register-form">
+                    <div class="form-group">
+                        <label for="role">I am a...</label>
+                        <select id="role" name="role" required onchange="toggleFields()">
+                            <option value="verifier">Verifier (Individual/Org)</option>
+                            <option value="uploader">Institution (Uploader)</option>
+                            <option value="admin">System Admin</option>
+                        </select>
+                    </div>
+
+                    <!-- Common Fields -->
+                    <div class="form-group">
+                        <label for="name">Full Name / Institution Name</label>
+                        <input type="text" id="name" name="name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" name="email" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="mobile">Mobile Number</label>
+                        <input type="text" id="mobile" name="mobile" required>
+                    </div>
+
+                    <!-- Admin Specific -->
+                    <div id="admin-fields" class="role-fields hidden">
+                        <div class="form-group">
+                            <label for="pin">Security PIN (4-6 digits)</label>
+                            <input type="password" id="pin" name="pin" maxlength="6">
+                        </div>
+                    </div>
+
+                    <!-- Verifier Specific -->
+                    <div id="verifier-fields" class="role-fields">
+                        <div class="form-group">
+                            <label for="designation">Designation (Optional)</label>
+                            <input type="text" id="designation" name="designation">
+                        </div>
+                        <div class="form-group">
+                            <label for="org_name_v">Organization Name</label>
+                            <input type="text" id="org_name_v" name="org_name">
+                        </div>
+                    </div>
+
+                    <!-- Uploader Specific -->
+                    <div id="uploader-fields" class="role-fields hidden">
+                        <div class="form-group">
+                            <label for="org_type">Institution Type</label>
+                            <select id="org_type" name="org_type">
+                                <option value="Educational">Educational</option>
+                                <option value="Corporate">Corporate</option>
+                                <option value="Government">Government</option>
+                                <option value="Legal">Legal</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="inst_code">Registration Code</label>
+                            <input type="text" id="inst_code" name="inst_code">
+                        </div>
+                        <div class="form-group">
+                            <label for="inst_address">Address</label>
+                            <input type="text" id="inst_address" name="inst_address">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary">Register</button>
+
+                    <p class="auth-link">
+                        Already have an account? <a href="login.html">Login here</a>
+                    </p>
+                </form>
+                <div id="error-msg" class="text-danger hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleFields() {
+            const role = document.getElementById('role').value;
+            document.querySelectorAll('.role-fields').forEach(el => el.classList.add('hidden'));
+
+            if (role === 'admin') document.getElementById('admin-fields').classList.remove('hidden');
+            else if (role === 'verifier') document.getElementById('verifier-fields').classList.remove('hidden');
+            else if (role === 'uploader') document.getElementById('uploader-fields').classList.remove('hidden');
+        }
+
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+
+            // Map org_name based on role
+            if (data.role === 'verifier') data.org_name = data.org_name_v;
+
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+
+                if (result.success) {
+                    alert('Registration successful! Please login.');
+                    window.location.href = 'login.html';
+                } else {
+                    const err = document.getElementById('error-msg');
+                    err.textContent = result.error;
+                    err.classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        });
+
+        // Init
+        toggleFields();
+    </script>
+</body>
+
+</html>

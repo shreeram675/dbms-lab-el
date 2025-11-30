@@ -22,7 +22,7 @@ app.use(session({
 }));
 
 // DB Connection (SQLite)
-const dbPath = path.resolve(__dirname, '../database.sqlite');
+const dbPath = path.resolve(__dirname, '../database_v2.sqlite');
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('Error opening database:', err.message);
@@ -34,14 +34,23 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 function initDB() {
     db.serialize(() => {
-        // 1. USERS table
+        // 1. USERS table - Expanded
         db.run(`CREATE TABLE IF NOT EXISTS USERS (
             user_id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL CHECK (role IN ('admin', 'uploader', 'verifier')),
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            mobile TEXT,
+            pin TEXT, -- For Admin
+            designation TEXT, -- For Verifier
+            org_name TEXT, -- For Verifier/Uploader
+            org_type TEXT, -- For Uploader
+            gov_id_path TEXT, -- For Verifier
+            institution_id INTEGER,
+            is_active INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (institution_id) REFERENCES INSTITUTIONS(institution_id)
         )`);
 
         // 2. INSTITUTIONS table
@@ -50,10 +59,13 @@ function initDB() {
             name TEXT NOT NULL,
             address TEXT,
             contact_email TEXT,
+            contact_phone TEXT,
+            code TEXT,
+            type TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
 
-        // 3. DOCUMENTS table (renamed from Document_Metadata)
+        // 3. DOCUMENTS table
         db.run(`CREATE TABLE IF NOT EXISTS DOCUMENTS (
             doc_id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -63,12 +75,13 @@ function initDB() {
             file_type TEXT NOT NULL,
             file_size TEXT,
             storage_path TEXT,
+            category TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES USERS(user_id),
             FOREIGN KEY (institution_id) REFERENCES INSTITUTIONS(institution_id)
         )`);
 
-        // 4. DOCUMENT_HASHES table (separate from Documents)
+        // 4. DOCUMENT_HASHES table
         db.run(`CREATE TABLE IF NOT EXISTS DOCUMENT_HASHES (
             hash_id INTEGER PRIMARY KEY AUTOINCREMENT,
             doc_id INTEGER NOT NULL UNIQUE,
@@ -110,91 +123,82 @@ function initDB() {
             user_id INTEGER NOT NULL,
             action TEXT NOT NULL,
             description TEXT,
+            ip_address TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES USERS(user_id)
         )`);
 
-        // Create default test users with hashed passwords
+        // 8. ANNOUNCEMENTS table (New)
+        db.run(`CREATE TABLE IF NOT EXISTS ANNOUNCEMENTS (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            created_by INTEGER NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (created_by) REFERENCES USERS(user_id)
+        )`);
+
+        // Create default test users
         const createUsers = async () => {
             const users = [
-                { name: 'System Admin', email: 'admin@blockverify.com', password: 'admin123', role: 'admin' },
-                { name: 'Document Uploader', email: 'uploader@blockverify.com', password: 'upload123', role: 'uploader' },
-                { name: 'Document Verifier', email: 'verifier@blockverify.com', password: 'verify123', role: 'verifier' }
+                { name: 'System Admin', email: 'admin@blockverify.com', password: 'admin123', role: 'admin', mobile: '1234567890', pin: '1234' },
+                { name: 'Document Uploader', email: 'uploader@blockverify.com', password: 'upload123', role: 'uploader', mobile: '9876543210', org_name: 'ABC University' },
+                { name: 'Document Verifier', email: 'verifier@blockverify.com', password: 'verify123', role: 'verifier', mobile: '5555555555', org_name: 'Background Check Co' }
             ];
 
             for (const user of users) {
                 const hash = await bcrypt.hash(user.password, 12);
-                db.run(`INSERT OR IGNORE INTO USERS (name, email, password_hash, role) 
-                        VALUES (?, ?, ?, ?)`, [user.name, user.email, hash, user.role]);
+                const instId = user.role === 'uploader' ? 1 : null;
+
+                db.run(`INSERT OR IGNORE INTO USERS (name, email, password_hash, role, mobile, pin, org_name, institution_id) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [user.name, user.email, hash, user.role, user.mobile, user.pin, user.org_name, instId]);
             }
         };
 
         createUsers().then(() => {
-            console.log('✅ All 7 tables initialized + Test users created');
+            console.log('✅ Database schema updated & default users checked');
         });
 
-        // Create default institutions
-        db.run(`INSERT OR IGNORE INTO INSTITUTIONS (institution_id, name, contact_email) VALUES (1, 'ABC University', 'admin@abcuniversity.edu')`);
-        db.run(`INSERT OR IGNORE INTO INSTITUTIONS (institution_id, name, contact_email) VALUES (2, 'XYZ Corporation', 'hr@xyzcorp.com')`);
-        db.run(`INSERT OR IGNORE INTO INSTITUTIONS (institution_id, name, contact_email) VALUES (3, 'Government Office', 'verify@gov.in')`);
+        // Default Institutions
+        db.run(`INSERT OR IGNORE INTO INSTITUTIONS (institution_id, name, contact_email, type) VALUES (1, 'ABC University', 'admin@abcuniversity.edu', 'Educational')`);
     });
 }
 
 // Multer Setup
 const upload = multer({ dest: 'uploads/' });
 
-// Blockchain Simulation
-class Block {
-    constructor(index, timestamp, data, previousHash = '') {
-        this.index = index;
-        this.timestamp = timestamp;
-        this.data = data;
-        this.previousHash = previousHash;
-        this.hash = this.calculateHash();
-    }
-
-    calculateHash() {
-        return crypto.createHash('sha256').update(
-            this.index + this.previousHash + this.timestamp + JSON.stringify(this.data)
-        ).digest('hex');
-    }
-}
-
+// Blockchain Simulation (Simplified)
 class Blockchain {
     constructor() {
-        this.chain = [this.createGenesisBlock()];
+        this.chain = [];
+        this.pendingTransactions = [];
     }
-
-    createGenesisBlock() {
-        return new Block(0, new Date().toISOString(), "Genesis Block", "0");
-    }
-
-    getLatestBlock() {
-        return this.chain[this.chain.length - 1];
-    }
-
-    addBlock(newBlock) {
-        newBlock.previousHash = this.getLatestBlock().hash;
-        newBlock.hash = newBlock.calculateHash();
-        this.chain.push(newBlock);
+    addBlock(data) {
+        const block = {
+            index: this.chain.length + 1,
+            timestamp: new Date().toISOString(),
+            data: data,
+            hash: crypto.randomBytes(32).toString('hex'),
+            gasUsed: Math.floor(Math.random() * 100000) + 21000
+        };
+        this.chain.push(block);
+        return block;
     }
 }
-
 const myBlockchain = new Blockchain();
 
 // Middleware
 app.use(express.static(path.join(__dirname, '../public')));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Authentication Middleware
+// Auth Middleware
 function requireAuth(req, res, next) {
-    if (!req.session.userId) {
-        return res.status(401).json({ error: 'Authentication required' });
-    }
+    if (!req.session.userId) return res.status(401).json({ error: 'Authentication required' });
     next();
 }
 
-// Authorization Middleware
 function requireRole(roles) {
     return (req, res, next) => {
         if (!req.session.userRole || !roles.includes(req.session.userRole)) {
@@ -204,257 +208,237 @@ function requireRole(roles) {
     };
 }
 
-// API Routes
+// --- API ROUTES ---
 
-// Health Check
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', session: !!req.session.userId });
+// 1. Registration
+app.post('/api/register', async (req, res) => {
+    const {
+        name, email, password, role, mobile,
+        pin, designation, org_name, org_type,
+        inst_address, inst_contact, inst_code
+    } = req.body;
+
+    try {
+        const hash = await bcrypt.hash(password, 12);
+
+        // Handle Institution Creation for Uploaders
+        let institutionId = null;
+        if (role === 'uploader') {
+            await new Promise((resolve, reject) => {
+                db.run(`INSERT INTO INSTITUTIONS (name, address, contact_email, contact_phone, code, type) 
+                        VALUES (?, ?, ?, ?, ?, ?)`,
+                    [org_name, inst_address, email, mobile, inst_code, org_type],
+                    function (err) {
+                        if (err) reject(err);
+                        else {
+                            institutionId = this.lastID;
+                            resolve();
+                        }
+                    });
+            });
+        }
+
+        db.run(`INSERT INTO USERS (name, email, password_hash, role, mobile, pin, designation, org_name, org_type, institution_id) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [name, email, hash, role, mobile, pin, designation, org_name, org_type, institutionId],
+            function (err) {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json({ success: true, userId: this.lastID });
+            });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// Authentication APIs
+// 2. Login
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password required' });
-    }
-
     db.get('SELECT * FROM USERS WHERE email = ?', [email], async (err, user) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        if (!user) {
-            return res.status(401).json({ error: 'Invalid credentials' });
-        }
+        if (err || !user) return res.status(401).json({ error: 'Invalid credentials' });
 
         const match = await bcrypt.compare(password, user.password_hash);
-        if (!match) {
-            return res.status(401).json({ error: 'Invalid credentials' });
-        }
+        if (!match) return res.status(401).json({ error: 'Invalid credentials' });
 
-        // Set session
+        if (user.is_active === 0) return res.status(403).json({ error: 'Account deactivated' });
+
         req.session.userId = user.user_id;
         req.session.userRole = user.role;
-        req.session.userName = user.name;
+        req.session.institutionId = user.institution_id;
 
-        // Log login
-        db.run(`INSERT INTO AUDIT_LOGS (user_id, action, description) VALUES (?, ?, ?)`,
-            [user.user_id, 'LOGIN', `User ${user.email} logged in`]);
+        db.run(`INSERT INTO AUDIT_LOGS (user_id, action, description, ip_address) VALUES (?, ?, ?, ?)`,
+            [user.user_id, 'LOGIN', 'User logged in', req.ip]);
 
-        res.json({
-            success: true,
-            user: {
-                id: user.user_id,
-                name: user.name,
-                email: user.email,
-                role: user.role
-            }
-        });
+        res.json({ success: true, user: { id: user.user_id, name: user.name, role: user.role } });
     });
 });
 
 app.post('/api/logout', (req, res) => {
-    const userId = req.session.userId;
+    if (req.session.userId) {
+        db.run(`INSERT INTO AUDIT_LOGS (user_id, action, description) VALUES (?, ?, ?)`, [req.session.userId, 'LOGOUT', 'User logged out']);
+    }
+    req.session.destroy(() => res.json({ success: true }));
+});
 
-    if (userId) {
-        db.run(`INSERT INTO AUDIT_LOGS (user_id, action, description) VALUES (?, ?, ?)`,
-            [userId, 'LOGOUT', 'User logged out']);
+app.get('/api/me', requireAuth, (req, res) => {
+    db.get('SELECT user_id, name, email, role, institution_id FROM USERS WHERE user_id = ?', [req.session.userId], (err, user) => {
+        res.json({ user });
+    });
+});
+
+// 3. Upload (Uploader/Admin)
+app.post('/api/upload', requireAuth, requireRole(['admin', 'uploader']), upload.single('file'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No file' });
+
+    const hash = crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');
+    const block = myBlockchain.addBlock({ fileName: req.file.originalname, hash });
+    const tx = `0x${crypto.randomBytes(32).toString('hex')}`;
+
+    db.run(`INSERT INTO DOCUMENTS (user_id, institution_id, title, file_name, file_type, file_size, storage_path, category) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [req.session.userId, req.session.institutionId, req.file.originalname, req.file.originalname, req.file.mimetype, req.file.size, req.file.path, 'General'],
+        function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            const docId = this.lastID;
+
+            db.run(`INSERT INTO DOCUMENT_HASHES (doc_id, sha256_hash, blockchain_tx, block_number) VALUES (?, ?, ?, ?)`,
+                [docId, hash, tx, block.index]);
+
+            db.run(`INSERT INTO AUDIT_LOGS (user_id, action, description) VALUES (?, ?, ?)`,
+                [req.session.userId, 'UPLOAD', `Uploaded ${req.file.originalname}`]);
+
+            fs.unlinkSync(req.file.path);
+            res.json({ success: true, document: { docId, hash, tx, blockIndex: block.index } });
+        });
+});
+
+// 4. Verify (Verifier/Admin)
+app.post('/api/verify', requireAuth, upload.single('file'), (req, res) => {
+    let hashToVerify = req.body.hash;
+    if (req.file) {
+        hashToVerify = crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');
+        fs.unlinkSync(req.file.path);
     }
 
-    req.session.destroy((err) => {
-        if (err) {
-            return res.status(500).json({ error: 'Logout failed' });
+    db.get('SELECT * FROM DOCUMENT_HASHES WHERE sha256_hash = ?', [hashToVerify], (err, record) => {
+        let result = 'TAMPERED';
+        let docId = null;
+
+        if (record) {
+            docId = record.doc_id;
+            db.get('SELECT * FROM REVOKED_DOCUMENTS WHERE doc_id = ?', [docId], (err, revoked) => {
+                result = revoked ? 'REVOKED' : 'AUTHENTIC';
+                logVerification(req.session.userId, docId, hashToVerify, record.sha256_hash, result);
+                res.json({ result, authentic: result === 'AUTHENTIC', revoked: !!revoked, reason: revoked?.reason });
+            });
+        } else {
+            logVerification(req.session.userId, null, hashToVerify, null, result);
+            res.json({ result, authentic: false });
         }
+    });
+});
+
+function logVerification(userId, docId, uploadedHash, storedHash, result) {
+    db.run(`INSERT INTO VERIFICATIONS (doc_id, verifier_id, uploaded_hash, stored_hash, result) VALUES (?, ?, ?, ?, ?)`,
+        [docId, userId, uploadedHash, storedHash, result]);
+}
+
+// 5. Analytics & Dashboard APIs
+app.get('/api/dashboard/admin', requireAuth, requireRole(['admin']), (req, res) => {
+    const queries = {
+        totalDocs: 'SELECT COUNT(*) as c FROM DOCUMENTS',
+        totalVerifications: 'SELECT COUNT(*) as c FROM VERIFICATIONS',
+        authVsTampered: `SELECT result, COUNT(*) as c FROM VERIFICATIONS GROUP BY result`,
+        topInstitutions: `SELECT i.name, COUNT(d.doc_id) as c FROM INSTITUTIONS i JOIN DOCUMENTS d ON i.institution_id = d.institution_id GROUP BY i.name ORDER BY c DESC LIMIT 10`,
+        dailyVerifications: `SELECT date(verified_at) as d, COUNT(*) as c FROM VERIFICATIONS GROUP BY d ORDER BY d DESC LIMIT 7`,
+        revokedStats: `SELECT COUNT(*) as c FROM REVOKED_DOCUMENTS`,
+        fileTypes: `SELECT file_type, COUNT(*) as c FROM DOCUMENTS GROUP BY file_type`,
+        recentActivity: `SELECT * FROM AUDIT_LOGS ORDER BY timestamp DESC LIMIT 10`
+    };
+
+    const runQuery = (sql) => new Promise((resolve) => db.all(sql, (err, rows) => resolve(rows)));
+
+    Promise.all(Object.values(queries).map(runQuery)).then(results => {
+        res.json({
+            stats: {
+                totalDocs: results[0][0].c,
+                totalVerifications: results[1][0].c,
+                revokedCount: results[5][0].c
+            },
+            charts: {
+                authVsTampered: results[2],
+                topInstitutions: results[3],
+                dailyVerifications: results[4],
+                fileTypes: results[6]
+            },
+            activity: results[7],
+            blockchain: {
+                blocks: myBlockchain.chain.length,
+                avgGas: 21500, // Mock
+                status: 'Connected'
+            }
+        });
+    });
+});
+
+app.get('/api/dashboard/uploader', requireAuth, requireRole(['uploader']), (req, res) => {
+    const instId = req.session.institutionId;
+    const queries = {
+        myDocs: `SELECT COUNT(*) as c FROM DOCUMENTS WHERE institution_id = ?`,
+        verificationsOnMyDocs: `SELECT v.result, COUNT(*) as c FROM VERIFICATIONS v JOIN DOCUMENTS d ON v.doc_id = d.doc_id WHERE d.institution_id = ? GROUP BY v.result`,
+        uploadTrend: `SELECT date(created_at) as d, COUNT(*) as c FROM DOCUMENTS WHERE institution_id = ? GROUP BY d ORDER BY d DESC LIMIT 7`,
+        recentDocs: `SELECT * FROM DOCUMENTS WHERE institution_id = ? ORDER BY created_at DESC LIMIT 5`
+    };
+
+    const runQuery = (sql) => new Promise((resolve) => db.all(sql, [instId], (err, rows) => resolve(rows)));
+
+    Promise.all(Object.values(queries).map(runQuery)).then(results => {
+        res.json({
+            stats: { totalDocs: results[0][0]?.c || 0 },
+            charts: {
+                verificationResults: results[1],
+                uploadTrend: results[2]
+            },
+            recentDocs: results[3]
+        });
+    });
+});
+
+app.get('/api/dashboard/verifier', requireAuth, requireRole(['verifier']), (req, res) => {
+    const userId = req.session.userId;
+    const queries = {
+        myVerifications: `SELECT COUNT(*) as c FROM VERIFICATIONS WHERE verifier_id = ?`,
+        myResults: `SELECT result, COUNT(*) as c FROM VERIFICATIONS WHERE verifier_id = ? GROUP BY result`,
+        history: `SELECT v.*, d.title FROM VERIFICATIONS v LEFT JOIN DOCUMENTS d ON v.doc_id = d.doc_id WHERE v.verifier_id = ? ORDER BY v.verified_at DESC LIMIT 10`
+    };
+
+    const runQuery = (sql) => new Promise((resolve) => db.all(sql, [userId], (err, rows) => resolve(rows)));
+
+    Promise.all(Object.values(queries).map(runQuery)).then(results => {
+        res.json({
+            stats: { totalVerifications: results[0][0]?.c || 0 },
+            charts: { results: results[1] },
+            history: results[2]
+        });
+    });
+});
+
+// 6. User Management (Admin)
+app.get('/api/users', requireAuth, requireRole(['admin']), (req, res) => {
+    db.all('SELECT user_id, name, email, role, is_active, created_at FROM USERS', (err, rows) => {
+        res.json(rows);
+    });
+});
+
+app.post('/api/users/:id/toggle', requireAuth, requireRole(['admin']), (req, res) => {
+    db.run(`UPDATE USERS SET is_active = NOT is_active WHERE user_id = ?`, [req.params.id], (err) => {
         res.json({ success: true });
     });
 });
 
-app.get('/api/me', requireAuth, (req, res) => {
-    db.get('SELECT user_id, name, email, role FROM USERS WHERE user_id = ?',
-        [req.session.userId], (err, user) => {
-            if (err || !user) {
-                return res.status(404).json({ error: 'User not found' });
-            }
-            res.json({ user });
-        });
-});
-
-// Institutions API
-app.get('/api/institutions', (req, res) => {
-    db.all('SELECT * FROM INSTITUTIONS', [], (err, rows) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        res.json({ institutions: rows });
-    });
-});
-
-// Upload Document (Admin/Uploader only)
-app.post('/api/upload', requireAuth, requireRole(['admin', 'uploader']), upload.single('file'), (req, res) => {
-    try {
-        const file = req.file;
-        const { institutionId } = req.body;
-
-        if (!file) return res.status(400).json({ error: 'No file uploaded' });
-
-        const userId = req.session.userId;
-        const hash = crypto.createHash('sha256').update(fs.readFileSync(file.path)).digest('hex');
-
-        // Create blockchain block
-        const newBlock = new Block(
-            myBlockchain.chain.length,
-            new Date().toISOString(),
-            { fileName: file.originalname, hash: hash }
-        );
-        myBlockchain.addBlock(newBlock);
-
-        // Simulated blockchain details
-        const blockchainTx = `0x${crypto.randomBytes(32).toString('hex')}`;
-        const contractAddress = '0xBlockchainContractAddress123';
-
-        // Store document
-        const stmt = db.prepare(`INSERT INTO DOCUMENTS (user_id, institution_id, title, file_name, file_type, file_size, storage_path) 
-                                  VALUES (?, ?, ?, ?, ?, ?, ?)`);
-        stmt.run(userId, institutionId || null, file.originalname, file.originalname, file.mimetype, file.size, file.path, function (err) {
-            if (err) {
-                return res.status(500).json({ error: err.message });
-            }
-
-            const docId = this.lastID;
-
-            // Store hash separately
-            db.run(`INSERT INTO DOCUMENT_HASHES (doc_id, sha256_hash, blockchain_tx, contract_address, block_number) 
-                    VALUES (?, ?, ?, ?, ?)`,
-                [docId, hash, blockchainTx, contractAddress, newBlock.index], (hashErr) => {
-                    if (hashErr) {
-                        console.error('Hash insert error:', hashErr.message);
-                    }
-                });
-
-            // Audit log
-            db.run(`INSERT INTO AUDIT_LOGS (user_id, action, description) VALUES (?, ?, ?)`,
-                [userId, 'UPLOAD', `Uploaded document: ${file.originalname}, Hash: ${hash}`]);
-
-            fs.unlinkSync(file.path); // Cleanup
-
-            res.json({
-                success: true,
-                document: { docId, hash, blockIndex: newBlock.index, tx: blockchainTx }
-            });
-        });
-        stmt.finalize();
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Verify Document
-app.post('/api/verify', requireAuth, upload.single('file'), (req, res) => {
-    try {
-        let hashToVerify;
-        const userId = req.session.userId;
-
-        if (req.file) {
-            hashToVerify = crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');
-            fs.unlinkSync(req.file.path);
-        } else if (req.body.hash) {
-            hashToVerify = req.body.hash;
-        } else {
-            return res.status(400).json({ error: 'No file or hash provided' });
-        }
-
-        // Check if hash exists
-        db.get('SELECT * FROM DOCUMENT_HASHES WHERE sha256_hash = ?', [hashToVerify], (err, hashRecord) => {
-            if (err) {
-                return res.status(500).json({ error: err.message });
-            }
-
-            let result, docId = null;
-
-            if (hashRecord) {
-                docId = hashRecord.doc_id;
-
-                // Check if revoked
-                db.get('SELECT * FROM REVOKED_DOCUMENTS WHERE doc_id = ?', [docId], (revErr, revoked) => {
-                    if (revoked) {
-                        result = 'REVOKED';
-                    } else {
-                        result = 'AUTHENTIC';
-                    }
-
-                    // Log verification
-                    db.run(`INSERT INTO VERIFICATIONS (doc_id, verifier_id, uploaded_hash, stored_hash, result) 
-                            VALUES (?, ?, ?, ?, ?)`,
-                        [docId, userId, hashToVerify, hashRecord.sha256_hash, result]);
-
-                    db.run(`INSERT INTO AUDIT_LOGS (user_id, action, description) VALUES (?, ?, ?)`,
-                        [userId, 'VERIFY', `Verification result: ${result}, Hash: ${hashToVerify}`]);
-
-                    res.json({
-                        authentic: result === 'AUTHENTIC',
-                        result,
-                        revoked: result === 'REVOKED',
-                        reason: revoked ? revoked.reason : null
-                    });
-                });
-            } else {
-                result = 'TAMPERED';
-                db.run(`INSERT INTO VERIFICATIONS (verifier_id, uploaded_hash, result) VALUES (?, ?, ?)`,
-                    [userId, hashToVerify, result]);
-                db.run(`INSERT INTO AUDIT_LOGS (user_id, action, description) VALUES (?, ?, ?)`,
-                    [userId, 'VERIFY', `Verification result: TAMPERED`]);
-
-                res.json({ authentic: false, result: 'TAMPERED' });
-            }
-        });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Dashboard
-app.get('/api/dashboard', (req, res) => {
-    db.all(`SELECT d.*, dh.sha256_hash, dh.blockchain_tx, i.name as institution_name 
-            FROM DOCUMENTS d 
-            LEFT JOIN DOCUMENT_HASHES dh ON d.doc_id = dh.doc_id 
-            LEFT JOIN INSTITUTIONS i ON d.institution_id = i.institution_id 
-            ORDER BY d.created_at DESC LIMIT 10`, [], (err, rows) => {
-        if (err) {
-            return res.json({ documents: [], blocks: myBlockchain.chain });
-        }
-        res.json({ documents: rows, blocks: myBlockchain.chain });
-    });
-});
-
-// Revoke Document (Admin only)
-app.post('/api/revoke/:docId', requireAuth, requireRole(['admin']), (req, res) => {
-    const { docId } = req.params;
-    const { reason } = req.body;
-    const userId = req.session.userId;
-
-    db.run(`INSERT INTO REVOKED_DOCUMENTS (doc_id, reason, revoked_by) VALUES (?, ?, ?)`,
-        [docId, reason, userId], (err) => {
-            if (err) {
-                return res.status(500).json({ error: err.message });
-            }
-
-            db.run(`INSERT INTO AUDIT_LOGS (user_id, action, description) VALUES (?, ?, ?)`,
-                [userId, 'REVOKE', `Revoked document ID: ${docId}, Reason: ${reason}`]);
-
-            res.json({ success: true });
-        });
-});
-
 // Fallback
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../public/login.html'));
-});
-
 app.get('*', (req, res) => {
+    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not found' });
     res.sendFile(path.join(__dirname, '../public/login.html'));
 });
 

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blockchain Document Verification System</title>
+    <title>BlockVerify - Document Management</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 
@@ -38,82 +38,204 @@
 
                 <!-- Upload Tab -->
                 <div id="upload-form" class="tab-content">
-                    <div class="form-group">
-                        <label for="institution-select">Select Your Institution *</label>
-                        <select id="institution-select" required>
-                            <option value="">-- Select Institution --</option>
-                        </select>
+                    <div class="card-content">
+                        <h2>Secure Document</h2>
+                        <p class="subtitle">Upload a document to anchor it on the blockchain.</p>
+
+                        <div id="uploader-info" class="info-box"
+                            style="margin-bottom: 1rem; padding: 10px; background: #f0f9ff; border-radius: 6px;">
+                            Uploading as: <span id="uploader-institution" class="highlight"
+                                style="font-weight: bold;">Loading...</span>
+                        </div>
+
+                        <div class="drop-zone" id="drop-zone">
+                            <div class="icon-upload">📄</div>
+                            <p id="file-label">Click to select a document</p>
+                            <input type="file" id="file-input" hidden>
+                        </div>
+                        <button class="btn-primary" id="btn-upload" disabled>Secure Document</button>
+                        <div id="upload-result" class="result-area hidden"></div>
                     </div>
-                    <div class="drop-zone" id="drop-zone">
-                        <div class="icon-upload">📄</div>
-                        <p id="file-label">Click to select a document</p>
-                        <input type="file" id="file-input" hidden>
-                    </div>
-                    <button class="btn-primary" id="btn-upload" disabled>Secure Document</button>
-                    <div id="upload-result" class="result-area hidden"></div>
                 </div>
 
                 <!-- Verify Tab -->
                 <div id="verify-form" class="tab-content hidden">
-                    <div class="form-group">
-                        <label for="verify-hash">Document Hash (Optional)</label>
-                        <input type="text" id="verify-hash" placeholder="Enter SHA-256 hash...">
+                    <div class="card-content">
+                        <h2>Verify Document</h2>
+                        <p class="subtitle">Check if a document is authentic and untampered.</p>
+
+                        <div class="form-group">
+                            <label for="verify-institution-select">Select Institution (Optional)</label>
+                            <select id="verify-institution-select" class="input-field"
+                                style="width: 100%; padding: 10px; margin-bottom: 1rem;">
+                                <option value="">-- All Institutions --</option>
+                            </select>
+                        </div>
+
+                        <div class="drop-zone" id="verify-drop-zone">
+                            <div class="icon-upload">🔍</div>
+                            <p id="verify-file-label">Click to upload document for verification</p>
+                            <input type="file" id="verify-file-input" hidden>
+                        </div>
+
+                        <div class="divider" style="margin: 1rem 0; text-align: center;">OR</div>
+
+                        <div class="form-group">
+                            <input type="text" id="verify-hash" placeholder="Enter SHA-256 Hash manually"
+                                class="input-field" style="width: 100%; padding: 10px;">
+                        </div>
+                        <button class="btn-primary" id="btn-verify" style="margin-top: 1rem;">Verify Document</button>
+                        <div id="verify-result" class="result-area hidden"></div>
                     </div>
-                    <div class="drop-zone" id="verify-drop-zone">
-                        <div class="icon-upload">🔍</div>
-                        <p id="verify-file-label">Or click to upload document for verification</p>
-                        <input type="file" id="verify-file-input" hidden>
-                    </div>
-                    <button class="btn-primary" id="btn-verify">Verify Document</button>
-                    <div id="verify-result" class="result-area hidden"></div>
                 </div>
 
-                <!-- Dashboard Tab -->
+                <!-- Dashboard View -->
                 <div id="dashboard-view" class="tab-content hidden">
-                    <h3>Recent Documents</h3>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Title</th>
-                                    <th>Institution</th>
-                                    <th>Hash</th>
-                                    <th>Blockchain TX</th>
-                                    <th>Date</th>
-                                </tr>
-                            </thead>
-                            <tbody id="documents-table">
-                                <tr>
-                                    <td colspan="6">Loading...</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <!-- Uploader Dashboard -->
+                    <div id="uploader-dashboard" class="hidden">
+                        <h3>Institution Analytics</h3>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <h4>Total Documents</h4>
+                                <p id="stat-total-docs">0</p>
+                            </div>
+                            <div class="stat-card">
+                                <h4>Total Verifications</h4>
+                                <p id="stat-verifications">0</p>
+                            </div>
+                        </div>
+
+                        <div class="charts-grid"
+                            style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+                            <div class="chart-container">
+                                <canvas id="uploaderChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="uploadTrendChart"></canvas>
+                            </div>
+                        </div>
+
+                        <h3>Recent Documents</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Date</th>
+                                        <th>Hash</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="documents-table">
+                                    <tr>
+                                        <td colspan="5">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
-                    <h3 style="margin-top: 2rem;">Blockchain Ledger</h3>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Block #</th>
-                                    <th>Timestamp</th>
-                                    <th>Hash</th>
-                                    <th>Data</th>
-                                </tr>
-                            </thead>
-                            <tbody id="blockchain-table">
-                                <tr>
-                                    <td colspan="4">Loading...</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <!-- Admin Dashboard -->
+                    <div id="admin-dashboard" class="hidden">
+                        <h3>Global Analytics</h3>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <h4>Total Documents</h4>
+                                <p id="admin-total-docs">0</p>
+                            </div>
+                            <div class="stat-card">
+                                <h4>Total Verifications</h4>
+                                <p id="admin-total-verify">0</p>
+                            </div>
+                            <div class="stat-card">
+                                <h4>Revoked Docs</h4>
+                                <p id="admin-revoked" class="text-danger">0</p>
+                            </div>
+                        </div>
+
+                        <div class="charts-grid"
+                            style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+                            <div class="chart-container">
+                                <canvas id="adminChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="authVsTamperedChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="dailyVerifyChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="fileTypeChart"></canvas>
+                            </div>
+                        </div>
+
+                        <h3>Recent System Activity</h3>
+                        <ul id="activity-feed" class="activity-list" style="list-style: none; padding: 0;">
+                            <!-- Populated by JS -->
+                        </ul>
+                    </div>
+
+                    <!-- Verifier Dashboard -->
+                    <div id="verifier-dashboard" class="hidden">
+                        <h3>My Verification Analytics</h3>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <h4>My Verifications</h4>
+                                <p id="verifier-total">0</p>
+                            </div>
+                        </div>
+
+                        <div class="chart-container">
+                            <canvas id="verifierResultsChart"></canvas>
+                        </div>
+
+                        <h3>Verification History</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Document</th>
+                                        <th>Result</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="verifier-history">
+                                    <tr>
+                                        <td colspan="3">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Blockchain Ledger (Shared) -->
+                    <div class="ledger-section" style="margin-top: 3rem;">
+                        <h3>Blockchain Ledger (Live)</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Block #</th>
+                                        <th>Timestamp</th>
+                                        <th>Hash</th>
+                                        <th>Data</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="blockchain-table">
+                                    <tr>
+                                        <td colspan="4">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="js/app.js"></script>
 </body>
 
